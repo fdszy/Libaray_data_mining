@@ -1,15 +1,18 @@
-# http://202.120.227.11/F?func=login-session&bor_library=FDU50&login_source=bor-info&bor_id=&bor_verification=
-import csv
-import time
-
+import os
+import argparse
 from selenium import webdriver
+import time
+import pyecharts.options as opts
+from pyecharts.charts import WordCloud
+import jieba
+import jieba.analyse
 
-driver = webdriver.Chrome()
-stu_book_info = {}
+parser = argparse.ArgumentParser()
+parser.add_argument('--userstring',default='17307130121')
+
+opt = parser.parse_args()
 
 
-# all_info = []
-#
 def crawlerbody(uid, password):
     '''
     爬虫主体结构。根据传入的uid试图登录图书馆。
@@ -30,13 +33,11 @@ def crawlerbody(uid, password):
     # 观察有没有登陆成功
     isok = driver.find_element_by_id("feedbackbar").text
     if isok == "":
-        # print(uidstr+":登陆成功")
-        uid_pas_csv.writerow([uidstr, password])
+        print(uidstr+":登陆成功")
         base_info_record(driver)
 
     else:
-        # print(uidstr+":登录失败")
-        uid_pas_csv.writerow([uidstr, 'fail'])
+        print(uidstr+":登录失败")
     # driver.quit()
 
 
@@ -58,7 +59,7 @@ def book_info_record(driver, book_num, stu_name_info, stu_maj_info):
     '''
     记录该学号的历史借阅情况
     '''
-
+    data = []
     # 网页只会显示100本书，所以这里不能超过100
     if book_num > 100:
         book_num = 100
@@ -82,12 +83,7 @@ def book_info_record(driver, book_num, stu_name_info, stu_maj_info):
         branch_of_lib = driver.find_element_by_xpath(
             '/html/body/center/table[2]/tbody/tr[' + str(i + 2) + ']/td[10]').get_attribute('textContent')
 
-        stu_book_info['stu_name'] = stu_name_info.lstrip()
-        stu_book_info['stu_maj'] = stu_maj_info.lstrip()
-        stu_book_info['writer'] = book_info_writer
-        stu_book_info['bookname'] = book_info_name
-        # todo
-        stu_book_info['borrowtime'] = borrow_time
+
 
         stu_name = stu_name_info.lstrip()
         stu_maj = stu_maj_info.lstrip()
@@ -97,53 +93,38 @@ def book_info_record(driver, book_num, stu_name_info, stu_maj_info):
         borrowtime = borrow_time
         branchoflib = branch_of_lib
 
-        # all_info.append(stu_book_info.copy())
-        # stu_book_info.clear()
-        uid_bookinfo_csv.writerow([stu_name, stu_maj, writer, bookname, bookindex, borrowtime, branchoflib])
+        words = jieba.analyse.extract_tags(bookname, topK=2, withWeight=False)
+        for word in words:
+            flag = 0
+            for key in data:
+
+                if word == key[0]:
+                    count = int(key[1])+1
+                    name = key[0]
+                    data.remove(key)
+                    data.append((name,count))
+                    flag = 11
+                    break
+            if(flag == 0):
+                dic = (word,"1")
+                data.append(dic)
+
+    (
+        WordCloud()
+            .add(series_name="常见词分析", data_pair=data, word_size_range=[6, 66],)
+            .set_global_opts(
+            title_opts=opts.TitleOpts(
+                title="常见词分析", title_textstyle_opts=opts.TextStyleOpts(font_size=23)
+            ),
+            tooltip_opts=opts.TooltipOpts(is_show=True),
+        )
+            .render("analysis_data.html")
+    )
 
 
-school_list = [
-    ("709", "社会科学试验班"),
-    ("710", "经济管理试验班"),
-    ("713", "技术科学试验班"),
-    ("711", "自然科学试验班"),
-    ("011", "中国语言文学"),
-    ("012", "外国语言文学学院"),
-    ("013", "新闻学院"),
-    ("018", "数学科学学院"),
-    ("016", "哲学学院"),
-    ("020", "核科学与技术系"),
-    ("068", "经济学院"),
-    ("072", "信息科学与工程学院"),
-    ("101", "基础医学院"),
-    ("103", "药学院"),
-    ("105", "临床医学院（筹）"),
-    ("117", "护理学院"),
-    ("708", "历史学类"),
-    ("027", "法学院"),
-    ("075", "微电子")]
 
-jd = 0
 
-for i in school_list:
-    print(i[0])
-    uid_pas = open(i[1] + 'uid_pas.csv', 'w')
-    uid_pas_csv = csv.writer(uid_pas)
-    uid_pas_csv.writerow(['uid', 'password'])
-
-    uid_bookinfo = open(i[1] + 'uid_bookinfo.csv', 'w')
-    uid_bookinfo_csv = csv.writer(uid_bookinfo)
-    uid_bookinfo_csv.writerow(['sut_name', 'stu_maj', 'writer', 'bookname', 'bookindex', 'borrowtime', 'branchoflib'])
-    for j in range(1, 51):
-        try:
-            crawlerbody(int("1730" + i[0] + "0000") + j, 1111)
-        except BaseException as e:
-            print("学号:1730" + i[0] + "0000的处理中出现异常")
-            print(e)
-            print()
-        jd = jd + 1
-        print(jd / (19 * 50))
-        print(str(jd) + "/" + str(19 * 50))
-
-crawlerbody(16307110315, 1112)
-# print(all_info)
+if __name__ == "__main__":
+    driver = webdriver.Chrome()
+    crawlerbody(opt.userstring, 1111)
+    driver.close()
