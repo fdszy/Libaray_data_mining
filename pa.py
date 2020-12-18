@@ -1,10 +1,11 @@
 # http://202.120.227.11/F?func=login-session&bor_library=FDU50&login_source=bor-info&bor_id=&bor_verification=
 import csv
 import time
-
+import hashlib
 from selenium import webdriver
 
 driver = webdriver.Chrome()
+driver.implicitly_wait(10)
 stu_book_info = {}
 
 
@@ -30,19 +31,17 @@ def crawlerbody(uid, password):
     # 观察有没有登陆成功
     isok = driver.find_element_by_id("feedbackbar").text
     if isok == "":
-        # print(uidstr+":登陆成功")
         uid_pas_csv.writerow([uidstr, password])
         base_info_record(driver)
 
     else:
-        # print(uidstr+":登录失败")
         uid_pas_csv.writerow([uidstr, 'fail'])
     # driver.quit()
 
 
 def base_info_record(driver):
     '''
-    记录该学号的有关信息，保存在学号+姓名的csv文件中
+    记录该学号的有关信息，保存在csv文件中
     '''
     stu_name_info = driver.find_element_by_xpath('//*[@id="baseinfo"]/a[1]/table[1]/tbody/tr/td[2]').get_attribute(
         'textContent')
@@ -88,8 +87,8 @@ def book_info_record(driver, book_num, stu_name_info, stu_maj_info):
         stu_book_info['bookname'] = book_info_name
         # todo
         stu_book_info['borrowtime'] = borrow_time
-
-        stu_name = stu_name_info.lstrip()
+#
+        stu_name = hashlib.md5(stu_name_info.lstrip().encode(encoding='UTF-8')).hexdigest()
         stu_maj = stu_maj_info.lstrip()
         writer = book_info_writer
         bookname = book_info_name
@@ -127,23 +126,22 @@ jd = 0
 
 for i in school_list:
     print(i[0])
-    uid_pas = open(i[1] + 'uid_pas.csv', 'w')
+    uid_pas = open('./crawler_data/'+i[1] + 'uid_pas.csv', 'w')
     uid_pas_csv = csv.writer(uid_pas)
     uid_pas_csv.writerow(['uid', 'password'])
 
-    uid_bookinfo = open(i[1] + 'uid_bookinfo.csv', 'w')
+    uid_bookinfo = open('./crawler_data/'+i[1] + 'uid_bookinfo.csv', 'w')
     uid_bookinfo_csv = csv.writer(uid_bookinfo)
     uid_bookinfo_csv.writerow(['sut_name', 'stu_maj', 'writer', 'bookname', 'bookindex', 'borrowtime', 'branchoflib'])
     for j in range(1, 51):
         try:
             crawlerbody(int("1730" + i[0] + "0000") + j, 1111)
         except BaseException as e:
-            print("学号:1730" + i[0] + "0000的处理中出现异常")
+            print("学号:1730" + i[0] + "000"+str(j)+"的处理中出现异常")
             print(e)
             print()
         jd = jd + 1
         print(jd / (19 * 50))
         print(str(jd) + "/" + str(19 * 50))
 
-crawlerbody(16307110315, 1112)
 # print(all_info)
